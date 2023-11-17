@@ -17,6 +17,7 @@ from django.core.exceptions import (
 )
 from django.db import DEFAULT_DB_ALIAS, models
 from django.db.models import Q, QuerySet
+from django.forms import model_to_dict
 from django.utils import formats
 from django.utils import timezone as django_timezone
 from django.utils.encoding import smart_str
@@ -230,6 +231,13 @@ class LogEntryManager(models.Manager):
             pk = self._get_pk_value(pk)
         return pk
 
+    def _is_json_serializable(self, value):
+        try:
+            json.dumps(value)
+            return True
+        except Exception:
+            return False
+
     def _get_serialized_data_or_none(self, instance):
         from auditlog.registry import auditlog
 
@@ -246,8 +254,12 @@ class LogEntryManager(models.Manager):
             )
 
         instance_copy = self._get_copy_with_python_typed_fields(instance)
+        instance_dict = model_to_dict(instance_copy)
+
+        json_serializable_copy = {k: v for k, v in instance_dict.items() if self._is_json_serializable(v)}
+
         data = dict(
-            json.loads(serializers.serialize("json", (instance_copy,), **kwargs))[0]
+            json.loads(serializers.serialize("json", (json_serializable_copy,), **kwargs))[0]
         )
 
         mask_fields = model_fields["mask_fields"]
