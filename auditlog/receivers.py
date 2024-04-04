@@ -1,3 +1,4 @@
+import json
 from functools import wraps
 
 from django.conf import settings
@@ -50,16 +51,25 @@ def log_update(sender, instance, **kwargs):
     Direct use is discouraged, connect your model through :py:func:`auditlog.registry.register` instead.
     """
     if instance.pk is not None:
-        update_fields = kwargs.get("update_fields", None)
-        old = sender.objects.filter(pk=instance.pk).first()
-        _create_log_entry(
-            action=LogEntry.Action.UPDATE,
-            instance=instance,
-            sender=sender,
-            diff_old=old,
-            diff_new=instance,
-            fields_to_check=update_fields,
-        )
+        try:
+            old = sender.objects.get(pk=instance.pk)
+        except sender.DoesNotExist:
+            pass
+        else:
+            new = instance
+            update_fields = kwargs.get("update_fields", None)
+            try:
+                changes = model_instance_diff(old, new, fields_to_check=update_fields)
+            except Exception:
+                changes = None
+
+            # Log an entry only if there are changes
+            if changes:
+                LogEntry.objects.log_create(
+                    instance,
+                    action=LogEntry.Action.UPDATE,
+                    changes=json.dumps(changes),
+                )
 
 
 @check_disable
