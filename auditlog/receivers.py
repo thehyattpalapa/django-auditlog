@@ -57,7 +57,10 @@ def log_update(sender, instance, **kwargs):
         else:
             new = instance
             update_fields = kwargs.get("update_fields", None)
-            changes = model_instance_diff(old, new, fields_to_check=update_fields)
+            try:
+                changes = model_instance_diff(old, new, fields_to_check=update_fields)
+            except ValueError:
+                changes = None
 
             # Log an entry only if there are changes
             if changes:
